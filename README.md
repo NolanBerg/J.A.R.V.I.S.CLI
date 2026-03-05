@@ -1,6 +1,6 @@
 # J.A.R.V.I.S.
 
-Just A Rather Very Intelligent System — an extensible command-line assistant with optional local AI.
+Just A Rather Very Intelligent System — an extensible command-line assistant based on J.A.R.V.I.S from Iron Man.
 
 ## Prerequisites
 
@@ -41,7 +41,7 @@ jarvis
 
 ## Enable AI (optional)
 
-Jarvis can use a local LLM via [Ollama](https://ollama.com). One command handles everything:
+Jarvis can use a local LLM via [Ollama](https://ollama.com) with context via JSON file to help with commands. One command handles everything:
 
 ```bash
 jarvis "ai setup"
