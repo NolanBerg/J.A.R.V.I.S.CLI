@@ -10,6 +10,7 @@ import typer
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
+from rich.text import Text
 
 app = typer.Typer(add_completion=False)
 console = Console()
@@ -31,7 +32,7 @@ def user_say(text: str) -> None:
 
 def render_banner() -> None:
     banner = pyfiglet.figlet_format("JARVIS", font="slant")
-    console.print(f"[bold cyan]{banner}[/bold cyan]")
+    console.print(Text(banner, style="bold cyan"))
     console.print("[bold cyan]Just A Rather Very Intelligent System[/bold cyan]\n")
 
 

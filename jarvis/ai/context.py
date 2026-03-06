@@ -29,11 +29,8 @@ def build_context() -> dict:
 
 
 def get_commands_json() -> str:
-    """Return a JSON string of available commands, regenerating the cache if missing."""
-    JARVIS_DIR.mkdir(parents=True, exist_ok=True)
-    if not COMMANDS_FILE.exists():
-        _write_cache()
-    return COMMANDS_FILE.read_text(encoding="utf-8")
+    """Return a JSON string of available commands, always built from the live registry."""
+    return json.dumps(build_context(), indent=2)
 
 
 def refresh_cache() -> None:
