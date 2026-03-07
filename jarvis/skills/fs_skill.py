@@ -12,6 +12,7 @@ Commands:
 """
 from __future__ import annotations
 
+import os
 import pathlib
 import shlex
 
@@ -88,6 +89,30 @@ def handle_mv(raw: str) -> None:
 @register("cp", description="Copy file or directory.")
 def handle_cp(raw: str) -> None:
     _cmd_cp(_tokens(raw))
+
+
+@register("pwd", description="Print current working directory.")
+def handle_pwd(raw: str) -> None:
+    jarvis_say(str(pathlib.Path.cwd()))
+
+
+@register("cd", description="Change current working directory (defaults to home).")
+def handle_cd(raw: str) -> None:
+    tokens = _tokens(raw)
+    target = tokens[0] if tokens else "~"
+    try:
+        path = resolve(target, must_exist=True)
+    except FileNotFoundError as e:
+        jarvis_say(f"[red]Not found:[/red] {e}")
+        return
+    if not path.is_dir():
+        jarvis_say(f"[red]Not a directory:[/red] {path}")
+        return
+    try:
+        os.chdir(path)
+        jarvis_say(f"[dim]{path}[/dim]")
+    except PermissionError as e:
+        jarvis_say(f"[red]Permission denied:[/red] {e}")
 
 
 # ---------------------------------------------------------------------------
