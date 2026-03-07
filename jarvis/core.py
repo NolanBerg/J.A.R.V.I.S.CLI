@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import glob as _glob
+import os
 import platform
+import readline
 import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Optional
 
 import pyfiglet
 import typer
 from rich.console import Console
-from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 
@@ -142,6 +145,26 @@ def show_help() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Tab completion
+# ---------------------------------------------------------------------------
+
+def _completer(text: str, state: int):
+    line = readline.get_line_buffer()
+    if " " not in line.lstrip():
+        # Completing a command name
+        options = [k for k in _registry if k.startswith(text)]
+    else:
+        # Completing a filesystem path argument
+        pattern = (text or ".") + "*"
+        matches = _glob.glob(os.path.expanduser(pattern))
+        options = [m + ("/" if os.path.isdir(m) else " ") for m in matches]
+    try:
+        return options[state]
+    except IndexError:
+        return None
+
+
+# ---------------------------------------------------------------------------
 # REPL
 # ---------------------------------------------------------------------------
 
@@ -153,17 +176,31 @@ def interactive_loop() -> None:
     jarvis_say("Online and ready. How may I assist you today?")
     console.print("[dim]Type 'help' to see capabilities, 'exit' to quit.[/dim]\n")
 
+    _history_file = Path.home() / ".jarvis" / "history"
+    _history_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        readline.read_history_file(str(_history_file))
+    except FileNotFoundError:
+        pass
+    readline.set_history_length(1000)
+
+    readline.set_completer(_completer)
+    readline.set_completer_delims(" \t\n")
+    if "libedit" in (readline.__doc__ or ""):
+        readline.parse_and_bind("bind ^I rl_complete")
+    else:
+        readline.parse_and_bind("tab: complete")
+
     while True:
         try:
-            raw = Prompt.ask("[bold magenta]Command[/bold magenta]")
+            raw = input("\033[1;35mCommand\033[0m: ")
         except (EOFError, KeyboardInterrupt):
+            readline.write_history_file(str(_history_file))
             jarvis_say("Emergency shutdown triggered. Goodbye.")
             raise typer.Exit(code=0)
 
         if not raw.strip():
             continue
-
-        user_say(raw)
 
         if dispatch(raw):
             continue

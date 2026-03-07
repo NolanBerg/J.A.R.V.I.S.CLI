@@ -45,3 +45,20 @@ def handle_identity(raw: str) -> None:
         "I am J.A.R.V.I.S., your personal command-line assistant. "
         "At your service."
     )
+
+
+@register("clear", aliases=["cls"], description="Clear the terminal screen.")
+def handle_clear(raw: str) -> None:
+    import os
+    os.system("clear")
+
+
+@register("history", description="Show command history.")
+def handle_history(raw: str) -> None:
+    import readline
+    n = readline.get_current_history_length()
+    if n == 0:
+        jarvis_say("No history yet.")
+        return
+    lines = [f"  {i + 1:>4}  {readline.get_history_item(i + 1)}" for i in range(n)]
+    jarvis_say("Command history:\n" + "\n".join(lines))
