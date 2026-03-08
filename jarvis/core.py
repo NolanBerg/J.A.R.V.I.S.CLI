@@ -5,6 +5,7 @@ import os
 import platform
 import readline
 import subprocess
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
@@ -31,6 +32,16 @@ def jarvis_say(text: str) -> None:
 
 def user_say(text: str) -> None:
     console.print(f"[bold magenta]You:[/bold magenta] {text}")
+
+
+@contextmanager
+def jarvis_thinking(message: str = "Thinking..."):
+    with console.status(
+        f"[bold blue]{JARVIS_NAME}:[/bold blue] [cyan]{message}[/cyan]",
+        spinner="dots",
+        spinner_style="bold cyan",
+    ):
+        yield
 
 
 def render_banner() -> None:

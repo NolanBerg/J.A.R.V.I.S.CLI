@@ -209,11 +209,13 @@ def ai_fallback(raw: str) -> None:
         return
 
     jarvis_say("I don't recognise that command. Let me ask the AI...")
-    response = chat(
-        f"The user typed: '{raw}'. "
-        "This did not match any Jarvis command. "
-        "Suggest what they might have meant or which command to use."
-    )
+    from jarvis.core import jarvis_thinking
+    with jarvis_thinking("Consulting the AI..."):
+        response = chat(
+            f"The user typed: '{raw}'. "
+            "This did not match any Jarvis command. "
+            "Suggest what they might have meant or which command to use."
+        )
     if response:
         jarvis_say(response)
     else:

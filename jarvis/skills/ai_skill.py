@@ -1,7 +1,7 @@
 """AI skill — local LLM assistance via Ollama."""
 from __future__ import annotations
 
-from jarvis.core import jarvis_say, register
+from jarvis.core import jarvis_say, jarvis_thinking, register
 
 
 @register(
@@ -110,7 +110,8 @@ def _run_chat(query: str) -> None:
         jarvis_say(f"{MODEL} is not downloaded yet. Type [bold]ai setup[/bold] to download it.")
         return
 
-    response = chat(query)
+    with jarvis_thinking("Processing your query..."):
+        response = chat(query)
     if response:
         jarvis_say(response)
     else:
