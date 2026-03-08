@@ -180,11 +180,24 @@ def _completer(text: str, state: int):
 # ---------------------------------------------------------------------------
 
 def interactive_loop() -> None:
+    import datetime
+
     # Import skills so they self-register before the loop starts
     import jarvis.skills  # noqa: F401
 
     render_banner()
-    jarvis_say("Online and ready. How may I assist you today?")
+
+    now = datetime.datetime.now()
+    hour = now.strftime("%I").lstrip("0")
+    ampm = now.strftime("%p")
+    hour_int = now.hour
+    if hour_int < 12:
+        greeting = "Good morning"
+    elif hour_int < 17:
+        greeting = "Good afternoon"
+    else:
+        greeting = "Good evening"
+    jarvis_say(f"{greeting}. It's {hour} {ampm}. How may I assist you today?")
     console.print("[dim]Type 'help' to see capabilities, 'exit' to quit.[/dim]\n")
 
     _history_file = Path.home() / ".jarvis" / "history"
