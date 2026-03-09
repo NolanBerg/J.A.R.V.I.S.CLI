@@ -204,7 +204,7 @@ def interactive_loop() -> None:
     _history_file.parent.mkdir(parents=True, exist_ok=True)
     try:
         readline.read_history_file(str(_history_file))
-    except FileNotFoundError:
+    except OSError:
         pass
     readline.set_history_length(1000)
 
@@ -219,7 +219,10 @@ def interactive_loop() -> None:
         try:
             raw = input("\033[1;35mCommand\033[0m: ")
         except (EOFError, KeyboardInterrupt):
-            readline.write_history_file(str(_history_file))
+            try:
+                readline.write_history_file(str(_history_file))
+            except OSError:
+                pass
             jarvis_say("Emergency shutdown triggered. Goodbye.")
             raise typer.Exit(code=0)
 

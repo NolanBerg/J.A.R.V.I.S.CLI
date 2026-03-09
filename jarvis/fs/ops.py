@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import pathlib
+import re
 import shutil
 import stat as stat_module
 import time
@@ -184,6 +185,83 @@ def fs_mv(src: pathlib.Path, dst: pathlib.Path) -> None:
     assert_writable(src)
     assert_writable(dst)
     shutil.move(str(src), str(dst))
+
+
+class GrepMatch(NamedTuple):
+    path: pathlib.Path
+    lineno: int
+    line: str
+
+
+def fs_find(root: pathlib.Path, pattern: str) -> list[pathlib.Path]:
+    """Recursively find files/directories matching pattern under root.
+
+    Pattern supports glob wildcards (*, **, ?). If no wildcards are present,
+    does a case-insensitive substring match on file/directory names.
+
+    Raises:
+        FileNotFoundError: root does not exist
+        PermissionError: insufficient read access
+    """
+    assert_readable(root)
+    if not root.exists():
+        raise FileNotFoundError(f"No such file or directory: '{root}'")
+
+    has_glob = any(c in pattern for c in ("*", "?", "["))
+    results: list[pathlib.Path] = []
+
+    if has_glob:
+        results = sorted(root.rglob(pattern))
+    else:
+        lower_pattern = pattern.lower()
+        for p in sorted(root.rglob("*")):
+            if lower_pattern in p.name.lower():
+                results.append(p)
+
+    return results
+
+
+def fs_grep(pattern: str, path: pathlib.Path, recursive: bool = False) -> list[GrepMatch]:
+    """Search for regex pattern in file(s).
+
+    If path is a file, searches that file.
+    If path is a directory and recursive=True, searches all files under it.
+
+    Raises:
+        FileNotFoundError: path does not exist
+        PermissionError: insufficient read access
+        IsADirectoryError: path is a directory and recursive=False
+        re.error: invalid regex pattern
+    """
+    regex = re.compile(pattern)
+
+    assert_readable(path)
+    if not path.exists():
+        raise FileNotFoundError(f"No such file or directory: '{path}'")
+
+    if path.is_dir():
+        if not recursive:
+            raise IsADirectoryError(
+                f"'{path}' is a directory. Use -r to search recursively."
+            )
+        targets = sorted(p for p in path.rglob("*") if p.is_file())
+    else:
+        targets = [path]
+
+    matches: list[GrepMatch] = []
+    for target in targets:
+        try:
+            text = target.read_text(encoding="utf-8", errors="replace")
+        except (PermissionError, OSError):
+            continue
+        # Skip likely binary files (null bytes in first 8 KB)
+        if "\x00" in text[:8192]:
+            continue
+        for lineno, line in enumerate(text.splitlines(), start=1):
+            if regex.search(line):
+                matches.append(GrepMatch(path=target, lineno=lineno, line=line))
+
+    return matches
 
 
 def fs_cp(src: pathlib.Path, dst: pathlib.Path) -> None:

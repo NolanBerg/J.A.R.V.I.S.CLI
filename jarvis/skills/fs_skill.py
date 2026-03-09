@@ -9,22 +9,28 @@ Commands:
   rm <path> [-r]         Delete file or directory
   mv <src> <dst>         Move or rename
   cp <src> <dst>         Copy file or directory
+  find [root] <pattern>  Search for files/directories by name
+  grep [-r] <pat> <path> Search for text inside files
 """
 from __future__ import annotations
 
 import os
 import pathlib
+import re
 import shlex
 
 from rich.console import Console
 from rich.prompt import Confirm
 from rich.table import Table
+from rich.text import Text
 
 from jarvis.core import jarvis_say, register
 from jarvis.fs.ops import (
     CAT_SIZE_LIMIT,
     fs_cat,
     fs_cp,
+    fs_find,
+    fs_grep,
     fs_ls,
     fs_mkdir,
     fs_mv,
@@ -89,6 +95,16 @@ def handle_mv(raw: str) -> None:
 @register("cp", description="Copy file or directory.")
 def handle_cp(raw: str) -> None:
     _cmd_cp(_tokens(raw))
+
+
+@register("find", aliases=["search"], description="Search for files or directories by name (supports globs).")
+def handle_find(raw: str) -> None:
+    _cmd_find(_tokens(raw))
+
+
+@register("grep", description="Search for text inside files (supports regex).")
+def handle_grep(raw: str) -> None:
+    _cmd_grep(_tokens(raw))
 
 
 @register("pwd", description="Print current working directory.")
@@ -335,6 +351,101 @@ def _cmd_cp(tokens: list[str]) -> None:
 
     if _run(fs_cp, src, dst):
         jarvis_say(f"[green]Copied[/green] [dim]{src}[/dim] → [dim]{dst}[/dim]")
+
+
+def _cmd_find(tokens: list[str]) -> None:
+    if not tokens:
+        jarvis_say("Usage: find [root] <pattern>")
+        return
+
+    # If two non-flag args: first is root, second is pattern. Otherwise cwd + pattern.
+    if len(tokens) >= 2:
+        root_str, pattern = tokens[0], tokens[1]
+    else:
+        root_str, pattern = ".", tokens[0]
+
+    try:
+        root = resolve(root_str, must_exist=True)
+    except FileNotFoundError as e:
+        jarvis_say(f"[red]Not found:[/red] {e}")
+        return
+
+    try:
+        results = fs_find(root, pattern)
+    except (FileNotFoundError, PermissionError, OSError) as e:
+        jarvis_say(f"[red]Error:[/red] {e}")
+        return
+
+    if not results:
+        jarvis_say(f"[dim]No matches for[/dim] [bold]{pattern}[/bold] [dim]in[/dim] [dim]{root}[/dim]")
+        return
+
+    jarvis_say(f"[dim]{len(results)} match(es) in {root}[/dim]")
+    for p in results:
+        try:
+            rel = p.relative_to(root)
+        except ValueError:
+            rel = p
+        if p.is_dir():
+            _console.print(f"  [bold blue]{rel}/[/bold blue]")
+        else:
+            _console.print(f"  {rel}")
+
+
+def _cmd_grep(tokens: list[str]) -> None:
+    flags = {t for t in tokens if t.startswith("-")}
+    positional = [t for t in tokens if not t.startswith("-")]
+    recursive = "-r" in flags or "--recursive" in flags
+
+    if len(positional) < 2:
+        jarvis_say("Usage: grep [-r] <pattern> <path>")
+        return
+
+    pattern, path_str = positional[0], positional[1]
+
+    try:
+        path = resolve(path_str, must_exist=True)
+    except FileNotFoundError as e:
+        jarvis_say(f"[red]Not found:[/red] {e}")
+        return
+
+    try:
+        matches = fs_grep(pattern, path, recursive=recursive)
+    except IsADirectoryError as e:
+        jarvis_say(f"[red]Error:[/red] {e}")
+        return
+    except re.error as e:
+        jarvis_say(f"[red]Invalid pattern:[/red] {e}")
+        return
+    except (FileNotFoundError, PermissionError, OSError) as e:
+        jarvis_say(f"[red]Error:[/red] {e}")
+        return
+
+    if not matches:
+        jarvis_say(f"[dim]No matches for[/dim] [bold]{pattern}[/bold]")
+        return
+
+    regex = re.compile(pattern)
+    current_file = None
+    for m in matches:
+        if m.path != current_file:
+            current_file = m.path
+            _console.print(f"\n[bold cyan]{m.path}[/bold cyan]")
+
+        # Highlight matched portions
+        line_text = Text()
+        last = 0
+        for hit in regex.finditer(m.line):
+            line_text.append(m.line[last:hit.start()])
+            line_text.append(m.line[hit.start():hit.end()], style="bold yellow")
+            last = hit.end()
+        line_text.append(m.line[last:])
+
+        prefix = Text(f"  {m.lineno}: ", style="dim")
+        _console.print(prefix + line_text)
+
+    _console.print()
+    jarvis_say(f"[dim]{len(matches)} match(es)[/dim]")
 
 
 # ---------------------------------------------------------------------------
