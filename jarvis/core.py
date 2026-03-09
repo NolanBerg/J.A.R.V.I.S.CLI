@@ -159,10 +159,12 @@ def show_help() -> None:
 # Tab completion
 # ---------------------------------------------------------------------------
 
+_IS_LIBEDIT = "libedit" in (readline.__doc__ or "")
+
+
 def _completer(text: str, state: int):
     line = readline.get_line_buffer()
     if " " not in line.lstrip():
-        # Completing a command name
         options = [k for k in _registry if k.startswith(text)]
     else:
         # Completing a filesystem path argument
@@ -210,10 +212,11 @@ def interactive_loop() -> None:
 
     readline.set_completer(_completer)
     readline.set_completer_delims(" \t\n")
-    if "libedit" in (readline.__doc__ or ""):
+    if _IS_LIBEDIT:
         readline.parse_and_bind("bind ^I rl_complete")
     else:
-        readline.parse_and_bind("tab: complete")
+        readline.parse_and_bind("set show-all-if-ambiguous on")
+        readline.parse_and_bind("tab: menu-complete")
 
     while True:
         try:
