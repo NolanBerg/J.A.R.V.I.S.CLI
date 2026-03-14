@@ -199,7 +199,25 @@ def interactive_loop() -> None:
         greeting = "Good afternoon"
     else:
         greeting = "Good evening"
-    jarvis_say(f"{greeting}. It's {hour} {ampm}. How may I assist you today?")
+
+    # Fetch weather for startup greeting
+    weather_blurb = ""
+    try:
+        from jarvis.skills.weather_skill import _fetch_weather, _get_saved_city
+        city = _get_saved_city()
+        result = _fetch_weather(city)
+        if result:
+            # result looks like "Austin: ☀️  +25°C ↑10km/h 50% humidity"
+            # Extract city name and temp for a clean greeting
+            parts = result.split(":")
+            location = parts[0].strip()
+            # Pull the temperature (e.g. "+25°C" or "72°F")
+            detail = ":".join(parts[1:]).strip() if len(parts) > 1 else ""
+            weather_blurb = f" The weather in {location} is {detail}."
+    except Exception:
+        pass
+
+    jarvis_say(f"{greeting}. It's {hour} {ampm}.{weather_blurb}")
     console.print("[dim]Type 'help' to see capabilities, 'exit' to quit.[/dim]\n")
 
     _history_file = Path.home() / ".jarvis" / "history"
