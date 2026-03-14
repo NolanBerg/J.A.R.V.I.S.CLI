@@ -27,6 +27,42 @@ Your role:
 5. You are running locally via Ollama. Never claim to be a cloud service.
 """
 
+ROUTE_PROMPT_TEMPLATE = """\
+You are a command router for a CLI tool called Jarvis.
+Given the user's natural-language input, decide if it maps to one of the registered commands below.
+
+{commands_json}
+
+If the input clearly matches a command, respond with ONLY the exact command string the user should run \
+(e.g. "time" or "sysinfo" or "ping google.com"). Do not add explanation.
+If it does NOT match any command, respond with exactly: NONE
+
+User input: {user_input}
+"""
+
+# ---------------------------------------------------------------------------
+# Conversation memory (session-scoped)
+# ---------------------------------------------------------------------------
+
+_conversation_history: list[dict[str, str]] = []
+MAX_HISTORY = 20  # keep last N exchanges to avoid ballooning context
+
+
+def get_history() -> list[dict[str, str]]:
+    """Return the current conversation history."""
+    return list(_conversation_history)
+
+
+def clear_history() -> None:
+    """Clear the conversation history."""
+    _conversation_history.clear()
+
+
+def _trim_history() -> None:
+    """Keep only the last MAX_HISTORY messages (pairs of user+assistant)."""
+    while len(_conversation_history) > MAX_HISTORY * 2:
+        _conversation_history.pop(0)
+
 
 def is_ollama_running() -> bool:
     """Return True if the Ollama daemon is reachable at localhost:11434."""
@@ -154,8 +190,12 @@ def pull_model() -> bool:
         return False
 
 
-def chat(user_message: str) -> Optional[str]:
-    """Send a message to the local LLM and return the response text."""
+def chat(user_message: str, *, remember: bool = True) -> Optional[str]:
+    """Send a message to the local LLM and return the response text.
+
+    When *remember* is True (default), the exchange is stored in session
+    history so follow-up questions have context.
+    """
     from jarvis.ai.context import get_commands_json
 
     try:
@@ -165,13 +205,16 @@ def chat(user_message: str) -> Optional[str]:
 
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(commands_json=commands_json)
 
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": system_prompt},
+        *_conversation_history,
+        {"role": "user", "content": user_message},
+    ]
+
     payload = json.dumps({
         "model": MODEL,
         "stream": False,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
+        "messages": messages,
     }).encode()
 
     req = urllib.request.Request(
@@ -183,14 +226,67 @@ def chat(user_message: str) -> Optional[str]:
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
             data = json.loads(resp.read())
-            return data["message"]["content"].strip()
+            reply = data["message"]["content"].strip()
     except Exception:
         return None
 
+    if remember:
+        _conversation_history.append({"role": "user", "content": user_message})
+        _conversation_history.append({"role": "assistant", "content": reply})
+        _trim_history()
+
+    return reply
+
+
+def route_command(user_input: str) -> Optional[str]:
+    """Ask the LLM whether *user_input* maps to a registered command.
+
+    Returns the command string if matched, or None if the LLM says NONE or
+    if the request fails.
+    """
+    from jarvis.ai.context import get_commands_json
+
+    try:
+        commands_json = get_commands_json()
+    except Exception:
+        commands_json = "{}"
+
+    prompt = ROUTE_PROMPT_TEMPLATE.format(
+        commands_json=commands_json,
+        user_input=user_input,
+    )
+
+    payload = json.dumps({
+        "model": MODEL,
+        "stream": False,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode()
+
+    req = urllib.request.Request(
+        f"{OLLAMA_BASE}/api/chat",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read())
+            result = data["message"]["content"].strip()
+    except Exception:
+        return None
+
+    if result.upper() == "NONE" or not result:
+        return None
+    return result
+
 
 def ai_fallback(raw: str) -> None:
-    """Called by the REPL when dispatch() returns False."""
-    from jarvis.core import jarvis_say
+    """Called by the REPL when dispatch() returns False.
+
+    First tries to route the input to a registered skill via the LLM.
+    If no skill matches, falls back to a conversational chat response.
+    """
+    from jarvis.core import dispatch, jarvis_say, jarvis_thinking
 
     if not is_ollama_running():
         jarvis_say(
@@ -208,14 +304,20 @@ def ai_fallback(raw: str) -> None:
         )
         return
 
-    jarvis_say("I don't recognise that command. Let me ask the AI...")
-    from jarvis.core import jarvis_thinking
-    with jarvis_thinking("Consulting the AI..."):
-        response = chat(
-            f"The user typed: '{raw}'. "
-            "This did not match any Jarvis command. "
-            "Suggest what they might have meant or which command to use."
-        )
+    # --- Step 1: try LLM-based skill routing ---
+    with jarvis_thinking("Interpreting your request..."):
+        routed_cmd = route_command(raw)
+
+    if routed_cmd:
+        # Avoid infinite loop: only dispatch if it actually matches a skill
+        if dispatch(routed_cmd):
+            return
+        # If the routed command itself doesn't match, fall through
+
+    # --- Step 2: conversational fallback ---
+    with jarvis_thinking("Thinking..."):
+        response = chat(raw)
+
     if response:
         jarvis_say(response)
     else:

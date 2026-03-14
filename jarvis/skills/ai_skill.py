@@ -1,6 +1,8 @@
 """AI skill — local LLM assistance via Ollama."""
 from __future__ import annotations
 
+import pathlib
+
 from jarvis.core import jarvis_say, jarvis_thinking, register
 
 
@@ -112,6 +114,87 @@ def _run_chat(query: str) -> None:
 
     with jarvis_thinking("Processing your query..."):
         response = chat(query)
+    if response:
+        jarvis_say(response)
+    else:
+        jarvis_say("I was unable to get a response from the AI. Is Ollama still running?")
+
+
+# ---------------------------------------------------------------------------
+# Clear conversation history
+# ---------------------------------------------------------------------------
+
+@register("forget", description="Clear AI conversation history.")
+def handle_forget(raw: str) -> None:
+    from jarvis.ai.ollama_client import clear_history
+
+    clear_history()
+    jarvis_say("Conversation history cleared. Starting fresh.")
+
+
+# ---------------------------------------------------------------------------
+# Summarize file
+# ---------------------------------------------------------------------------
+
+MAX_SUMMARIZE_BYTES = 50_000  # ~50 KB cap to avoid overwhelming the LLM
+
+
+@register(
+    "summarize",
+    aliases=["sum"],
+    description="Summarize a file using AI. Usage: summarize <file>",
+)
+def handle_summarize(raw: str) -> None:
+    query = raw.strip()
+    for prefix in ("summarize ", "sum "):
+        if query.lower().startswith(prefix):
+            query = query[len(prefix):].strip()
+            break
+    else:
+        query = ""
+
+    if not query:
+        jarvis_say("Usage: [bold]summarize <file>[/bold]")
+        return
+
+    from jarvis.ai.ollama_client import MODEL, chat, is_model_available, is_ollama_running
+
+    if not is_ollama_running():
+        jarvis_say("Ollama is not running. Type [bold]ai setup[/bold] to get started.")
+        return
+    if not is_model_available():
+        jarvis_say(f"{MODEL} is not downloaded yet. Type [bold]ai setup[/bold] to download it.")
+        return
+
+    path = pathlib.Path(query).expanduser().resolve()
+    if not path.exists():
+        jarvis_say(f"[red]Not found:[/red] {path}")
+        return
+    if not path.is_file():
+        jarvis_say(f"[red]Not a file:[/red] {path}")
+        return
+
+    try:
+        size = path.stat().st_size
+        if size > MAX_SUMMARIZE_BYTES:
+            jarvis_say(
+                f"[yellow]File is {size / 1024:.0f} KB — "
+                f"truncating to first {MAX_SUMMARIZE_BYTES // 1024} KB for summarization.[/yellow]"
+            )
+        content = path.read_text(encoding="utf-8", errors="replace")[:MAX_SUMMARIZE_BYTES]
+    except (PermissionError, OSError) as e:
+        jarvis_say(f"[red]Error reading file:[/red] {e}")
+        return
+
+    prompt = (
+        f"Summarize the following file ({path.name}). "
+        "Give a concise overview of its purpose, key sections, and important details.\n\n"
+        f"```\n{content}\n```"
+    )
+
+    with jarvis_thinking(f"Summarizing {path.name}..."):
+        response = chat(prompt, remember=False)
+
     if response:
         jarvis_say(response)
     else:
