@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(.venv/bin/pytest tests/ -v)",
+      "Bash(.venv/bin/jarvis \"plugin list\")"
+    ]
+  }
+}

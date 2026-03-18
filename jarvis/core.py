@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import glob as _glob
+import importlib.util
 import os
 import platform
 import readline
@@ -156,6 +157,31 @@ def show_help() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Plugin loader
+# ---------------------------------------------------------------------------
+
+_loaded_plugins: list[str] = []
+
+
+def load_plugins() -> None:
+    """Scan ~/.jarvis/plugins/*.py and load each as a skill module."""
+    plugin_dir = Path.home() / ".jarvis" / "plugins"
+    if not plugin_dir.is_dir():
+        return
+    for path in sorted(plugin_dir.glob("*.py")):
+        name = path.stem
+        try:
+            spec = importlib.util.spec_from_file_location(
+                f"jarvis_plugin_{name}", path
+            )
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _loaded_plugins.append(name)
+        except Exception as exc:
+            jarvis_say(f"[yellow]Plugin '{name}' failed to load:[/yellow] {exc}")
+
+
+# ---------------------------------------------------------------------------
 # Tab completion
 # ---------------------------------------------------------------------------
 
@@ -186,6 +212,7 @@ def interactive_loop() -> None:
 
     # Import skills so they self-register before the loop starts
     import jarvis.skills  # noqa: F401
+    load_plugins()
 
     render_banner()
 
@@ -205,7 +232,7 @@ def interactive_loop() -> None:
     try:
         from jarvis.skills.weather_skill import _fetch_weather, _get_saved_city
         city = _get_saved_city()
-        result = _fetch_weather(city)
+        result = _fetch_weather(city, timeout=3)
         if result:
             # result looks like "Austin: ☀️  +25°C ↑10km/h 50% humidity"
             # Extract city name and temp for a clean greeting
@@ -265,6 +292,7 @@ def interactive_loop() -> None:
 def run(command: Optional[str] = typer.Argument(None)) -> None:
     """Run Jarvis interactively (no args) or execute a single command."""
     import jarvis.skills  # noqa: F401
+    load_plugins()
 
     if command is None:
         interactive_loop()

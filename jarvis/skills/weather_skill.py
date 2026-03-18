@@ -1,40 +1,24 @@
 """Weather skill — current conditions via wttr.in (no API key needed)."""
 from __future__ import annotations
 
-import json
-import pathlib
 import ssl
 import urllib.error
 import urllib.request
 
+from jarvis.config import load_config, save_config
 from jarvis.core import jarvis_say, jarvis_thinking, register
 
-CONFIG_FILE = pathlib.Path.home() / ".jarvis" / "config.json"
 WTTR_URL = "https://wttr.in"
 
 
-def _load_config() -> dict:
-    if CONFIG_FILE.exists():
-        try:
-            return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            pass
-    return {}
-
-
-def _save_config(cfg: dict) -> None:
-    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-
-
 def _get_saved_city() -> str | None:
-    return _load_config().get("weather_city")
+    return load_config().get("weather_city")
 
 
 def _set_saved_city(city: str) -> None:
-    cfg = _load_config()
+    cfg = load_config()
     cfg["weather_city"] = city
-    _save_config(cfg)
+    save_config(cfg)
 
 
 def _ssl_context() -> ssl.SSLContext:
@@ -42,7 +26,7 @@ def _ssl_context() -> ssl.SSLContext:
     try:
         ctx = ssl.create_default_context()
         # Quick test — if this doesn't raise, certs are fine
-        urllib.request.urlopen("https://wttr.in", timeout=3, context=ctx)
+        urllib.request.urlopen("https://wttr.in", timeout=2, context=ctx)
         return ctx
     except (ssl.SSLError, urllib.error.URLError, OSError):
         ctx = ssl.create_default_context()
@@ -61,13 +45,13 @@ def _get_ssl_ctx() -> ssl.SSLContext:
     return _ctx
 
 
-def _fetch_weather(city: str | None) -> str | None:
+def _fetch_weather(city: str | None, timeout: int = 10) -> str | None:
     """Fetch weather from wttr.in. If city is None, auto-detect via IP."""
     location = city.replace(" ", "%20") if city else ""
     url = f"{WTTR_URL}/{location}?format=%l:+%c+%t+%w+%h+humidity"
     req = urllib.request.Request(url, headers={"User-Agent": "curl/7.0"})
     try:
-        with urllib.request.urlopen(req, timeout=10, context=_get_ssl_ctx()) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=_get_ssl_ctx()) as resp:
             return resp.read().decode("utf-8").strip()
     except (urllib.error.URLError, OSError):
         return None
