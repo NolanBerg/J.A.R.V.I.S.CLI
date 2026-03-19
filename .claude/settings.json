@@ -3,7 +3,13 @@
     "allow": [
       "Bash(.venv/bin/pip install:*)",
       "Bash(.venv/bin/pytest tests/ -v)",
-      "Bash(.venv/bin/jarvis \"plugin list\")"
+      "Bash(.venv/bin/jarvis \"plugin list\")",
+      "Bash(.venv/bin/jarvis \"help\")",
+      "Bash(.venv/bin/jarvis 'copy hello world')",
+      "Bash(.venv/bin/jarvis 'note remember to add tests for Phase 2')",
+      "Bash(.venv/bin/jarvis 'paste')",
+      "Bash(.venv/bin/jarvis 'note list')",
+      "Bash(.venv/bin/jarvis 'remind list')"
     ]
   }
 }
