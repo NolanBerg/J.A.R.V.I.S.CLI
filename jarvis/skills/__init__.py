@@ -9,3 +9,7 @@ from jarvis.skills import clipboard_skill as clipboard_skill  # noqa: F401
 from jarvis.skills import note_skill as note_skill  # noqa: F401
 from jarvis.skills import remind_skill as remind_skill  # noqa: F401
 from jarvis.skills import plugin_skill as plugin_skill  # noqa: F401
+from jarvis.skills import alias_skill as alias_skill  # noqa: F401
+from jarvis.skills import env_skill as env_skill  # noqa: F401
+from jarvis.skills import calc_skill as calc_skill  # noqa: F401
+from jarvis.skills import fileutil_skill as fileutil_skill  # noqa: F401

@@ -9,7 +9,9 @@
       "Bash(.venv/bin/jarvis 'note remember to add tests for Phase 2')",
       "Bash(.venv/bin/jarvis 'paste')",
       "Bash(.venv/bin/jarvis 'note list')",
-      "Bash(.venv/bin/jarvis 'remind list')"
+      "Bash(.venv/bin/jarvis 'remind list')",
+      "Bash(.venv/bin/python -c \"import jarvis.skills; print\\(''All skills loaded OK''\\)\")",
+      "Bash(.venv/bin/python -m pytest tests/ -v)"
     ]
   }
 }

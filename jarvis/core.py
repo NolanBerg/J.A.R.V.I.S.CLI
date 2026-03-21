@@ -280,6 +280,10 @@ def interactive_loop() -> None:
         if dispatch(raw):
             continue
 
+        from jarvis.skills.alias_skill import try_alias  # lazy import
+        if try_alias(raw):
+            continue
+
         from jarvis.ai.ollama_client import ai_fallback  # lazy import
         ai_fallback(raw)
 
