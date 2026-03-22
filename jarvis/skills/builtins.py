@@ -53,12 +53,33 @@ def handle_clear(raw: str) -> None:
     os.system("clear")
 
 
-@register("history", description="Show command history.")
+@register("history", description="Show or search command history. Usage: history [search <term>]")
 def handle_history(raw: str) -> None:
     import readline
+    parts = raw.strip().split(None, 2)
+    sub = parts[1].lower() if len(parts) > 1 else ""
+    term = parts[2] if len(parts) > 2 else ""
+
     n = readline.get_current_history_length()
     if n == 0:
         jarvis_say("No history yet.")
         return
+
+    if sub == "search":
+        if not term:
+            jarvis_say("Usage: history search <term>")
+            return
+        lower_term = term.lower()
+        matches = []
+        for i in range(n):
+            item = readline.get_history_item(i + 1)
+            if item and lower_term in item.lower():
+                matches.append(f"  {i + 1:>4}  {item}")
+        if not matches:
+            jarvis_say(f"[dim]No history matching '{term}'.[/dim]")
+        else:
+            jarvis_say(f"{len(matches)} match(es) for '{term}':\n" + "\n".join(matches))
+        return
+
     lines = [f"  {i + 1:>4}  {readline.get_history_item(i + 1)}" for i in range(n)]
     jarvis_say("Command history:\n" + "\n".join(lines))

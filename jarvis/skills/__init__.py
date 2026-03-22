@@ -18,3 +18,6 @@ from jarvis.skills import json_skill as json_skill  # noqa: F401
 from jarvis.skills import ip_skill as ip_skill  # noqa: F401
 from jarvis.skills import process_skill as process_skill  # noqa: F401
 from jarvis.skills import replace_skill as replace_skill  # noqa: F401
+from jarvis.skills import hash_skill as hash_skill  # noqa: F401
+from jarvis.skills import tree_skill as tree_skill  # noqa: F401
+from jarvis.skills import cron_skill as cron_skill  # noqa: F401
