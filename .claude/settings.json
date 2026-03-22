@@ -11,7 +11,8 @@
       "Bash(.venv/bin/jarvis 'note list')",
       "Bash(.venv/bin/jarvis 'remind list')",
       "Bash(.venv/bin/python -c \"import jarvis.skills; print\\(''All skills loaded OK''\\)\")",
-      "Bash(.venv/bin/python -m pytest tests/ -v)"
+      "Bash(.venv/bin/python -m pytest tests/ -v)",
+      "Bash(.venv/bin/python -m pytest tests/ -q)"
     ]
   }
 }

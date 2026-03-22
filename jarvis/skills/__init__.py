@@ -13,3 +13,8 @@ from jarvis.skills import alias_skill as alias_skill  # noqa: F401
 from jarvis.skills import env_skill as env_skill  # noqa: F401
 from jarvis.skills import calc_skill as calc_skill  # noqa: F401
 from jarvis.skills import fileutil_skill as fileutil_skill  # noqa: F401
+from jarvis.skills import todo_skill as todo_skill  # noqa: F401
+from jarvis.skills import json_skill as json_skill  # noqa: F401
+from jarvis.skills import ip_skill as ip_skill  # noqa: F401
+from jarvis.skills import process_skill as process_skill  # noqa: F401
+from jarvis.skills import replace_skill as replace_skill  # noqa: F401
