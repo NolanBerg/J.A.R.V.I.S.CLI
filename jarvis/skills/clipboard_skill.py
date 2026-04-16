@@ -17,31 +17,63 @@ def _copy_to_clipboard(text: str) -> bool:
     sys = _system()
     if sys == "darwin":
         cmd = ["pbcopy"]
+        try:
+            subprocess.run(cmd, input=text.encode(), check=True)
+            return True
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            return False
     elif sys == "linux":
-        cmd = ["xclip", "-selection", "clipboard"]
-    else:
+        # Try xclip first, fall back to xsel
+        for cmd in (
+            ["xclip", "-selection", "clipboard"],
+            ["xsel", "--clipboard", "--input"],
+        ):
+            try:
+                subprocess.run(cmd, input=text.encode(), check=True)
+                return True
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                continue
         return False
-    try:
-        subprocess.run(cmd, input=text.encode(), check=True)
-        return True
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return False
+    elif sys == "windows":
+        try:
+            # `clip` reads from stdin on Windows
+            subprocess.run(["clip"], input=text.encode("utf-16-le"), check=True)
+            return True
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            return False
+    return False
 
 
 def _read_clipboard() -> str | None:
     """Read text from system clipboard."""
     sys = _system()
     if sys == "darwin":
-        cmd = ["pbpaste"]
+        try:
+            result = subprocess.run(["pbpaste"], capture_output=True, text=True, check=True)
+            return result.stdout
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            return None
     elif sys == "linux":
-        cmd = ["xclip", "-selection", "clipboard", "-o"]
-    else:
+        for cmd in (
+            ["xclip", "-selection", "clipboard", "-o"],
+            ["xsel", "--clipboard", "--output"],
+        ):
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                return result.stdout
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                continue
         return None
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return result.stdout
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return None
+    elif sys == "windows":
+        try:
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+                capture_output=True, text=True, check=True,
+            )
+            return result.stdout
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            return None
+    return None
 
 
 @register(

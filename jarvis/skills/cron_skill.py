@@ -20,6 +20,7 @@ Examples:
 """
 from __future__ import annotations
 
+import platform
 import re
 import shlex
 import subprocess
@@ -28,6 +29,8 @@ from rich.console import Console
 from rich.table import Table
 
 from jarvis.core import jarvis_say, register
+
+_SYSTEM = platform.system().lower()
 
 _console = Console()
 
@@ -106,6 +109,15 @@ def _next_id(jobs: list[dict]) -> int:
 
 @register("cron", aliases=["schedule"], description="Persistent scheduled tasks. Usage: cron list/add/rm")
 def handle_cron(raw: str) -> None:
+    if _SYSTEM == "windows":
+        jarvis_say(
+            "Cron uses [bold]Windows Task Scheduler[/bold] on this platform.\n"
+            "To manage scheduled tasks, use [cyan]Task Scheduler[/cyan] (taskschd.msc) "
+            "or the [cyan]schtasks[/cyan] command.\n"
+            "Example: [dim]schtasks /create /SC DAILY /TN \"JarvisDaily\" /TR \"jarvis sysinfo\" /ST 09:00[/dim]"
+        )
+        return
+
     parts = raw.strip().split(None, 1)
     arg = parts[1].strip() if len(parts) > 1 else ""
     lower = arg.lower()

@@ -8,7 +8,10 @@ Commands:
 """
 from __future__ import annotations
 
+import csv
+import io
 import os
+import platform
 import signal
 import subprocess
 
@@ -19,10 +22,17 @@ from rich.table import Table
 from jarvis.core import jarvis_say, register
 
 _console = Console()
+_SYSTEM = platform.system().lower()
 
 
 def _parse_ps() -> list[dict]:
-    """Parse ps output into a list of process dicts."""
+    """Return process list as dicts with keys: user, pid, cpu, mem, command."""
+    if _SYSTEM == "windows":
+        return _parse_ps_windows()
+    return _parse_ps_unix()
+
+
+def _parse_ps_unix() -> list[dict]:
     try:
         result = subprocess.run(
             ["ps", "aux"],
@@ -46,6 +56,39 @@ def _parse_ps() -> list[dict]:
             "cpu": parts[2],
             "mem": parts[3],
             "command": parts[10],
+        })
+    return processes
+
+
+def _parse_ps_windows() -> list[dict]:
+    """Use tasklist /FO CSV to get process list on Windows."""
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FO", "CSV", "/NH"],
+            capture_output=True, text=True, timeout=10,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return []
+
+    processes = []
+    reader = csv.reader(io.StringIO(result.stdout))
+    for row in reader:
+        if len(row) < 2:
+            continue
+        # tasklist CSV: Image Name, PID, Session Name, Session#, Mem Usage
+        name = row[0].strip()
+        pid = row[1].strip()
+        mem_str = row[4].strip().replace(",", "").replace(" K", "") if len(row) > 4 else "0"
+        try:
+            mem_kb = int(mem_str)
+        except ValueError:
+            mem_kb = 0
+        processes.append({
+            "user": "N/A",
+            "pid": pid,
+            "cpu": "N/A",
+            "mem": f"{mem_kb // 1024} MB",
+            "command": name,
         })
     return processes
 
@@ -108,20 +151,23 @@ def handle_kill(raw: str) -> None:
     # If target is numeric, kill by PID directly
     if target.isdigit():
         pid = int(target)
-        try:
-            os.kill(pid, signal.SIGTERM)
-            jarvis_say(f"[green]Sent SIGTERM to PID {pid}.[/green]")
-        except ProcessLookupError:
-            jarvis_say(f"[yellow]No process with PID {pid}.[/yellow]")
-        except PermissionError:
-            jarvis_say(f"[red]Permission denied for PID {pid}.[/red]")
+        if _SYSTEM == "windows":
+            _kill_pid_windows(pid)
+        else:
+            try:
+                os.kill(pid, signal.SIGTERM)
+                jarvis_say(f"[green]Sent SIGTERM to PID {pid}.[/green]")
+            except ProcessLookupError:
+                jarvis_say(f"[yellow]No process with PID {pid}.[/yellow]")
+            except PermissionError:
+                jarvis_say(f"[red]Permission denied for PID {pid}.[/red]")
         return
 
     # Kill by name — find matching processes first
     processes = _parse_ps()
     matches = [p for p in processes if target.lower() in p["command"].lower()]
 
-    # Filter out our own ps command
+    # Filter out our own process
     matches = [p for p in matches if p["pid"] != str(os.getpid())]
 
     if not matches:
@@ -140,9 +186,31 @@ def handle_kill(raw: str) -> None:
     killed = 0
     for p in matches:
         try:
-            os.kill(int(p["pid"]), signal.SIGTERM)
-            killed += 1
-        except (ProcessLookupError, PermissionError):
+            if _SYSTEM == "windows":
+                result = subprocess.run(
+                    ["taskkill", "/PID", p["pid"], "/F"],
+                    capture_output=True, timeout=5,
+                )
+                if result.returncode == 0:
+                    killed += 1
+            else:
+                os.kill(int(p["pid"]), signal.SIGTERM)
+                killed += 1
+        except (ProcessLookupError, PermissionError, OSError):
             pass
 
     jarvis_say(f"[green]Killed {killed} of {len(matches)} process(es).[/green]")
+
+
+def _kill_pid_windows(pid: int) -> None:
+    try:
+        result = subprocess.run(
+            ["taskkill", "/PID", str(pid), "/F"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            jarvis_say(f"[green]Terminated PID {pid}.[/green]")
+        else:
+            jarvis_say(f"[red]Failed to terminate PID {pid}:[/red] {result.stderr.strip()}")
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+        jarvis_say(f"[red]Error:[/red] {e}")
